@@ -1,0 +1,532 @@
+---
+title: "Estimation of Plant Mating System Parameters: Correlated Paternity at Different Hierarchical Levels"
+author: Felipe Torres-Vanegas
+date: May 9, 2022
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+# Selfing Data
+
+## Load Selfing Data
+
+```{r}
+data_selfing <- read.csv(paste0(here::here("Output_COLONY/Output_Selfer.txt")))
+```
+
+## Identify Selfed Seeds
+
+```{r}
+data_selfing <- data_selfing %>% 
+  mutate(Selfed = ifelse(Probability >= 0.90, "Yes", "No"))
+```
+
+## Identify Maternal Plant ID for each Seed
+
+```{r}
+tmp <- Reduce(rbind, strsplit(as.character(data_selfing$OffspringID), split = "_"))
+
+data_selfing <- data_selfing %>% 
+  mutate(MomID = tmp[,1])
+```
+
+## Identify Bract ID for each Seed
+
+```{r}
+data_selfing <- data_selfing %>% 
+  mutate(BractID = paste(tmp[,1], tmp[,2], sep = "_"))
+```
+
+## Identify Fruit ID for each Seed
+
+```{r}
+data_selfing <- data_selfing %>% 
+  mutate(FruitID = paste(tmp[,1], tmp[,2], tmp[,3], sep = "_"))
+```
+
+## Arrange Column Order
+
+```{r}
+data_selfing <- data_selfing %>% 
+  select(MomID, OffspringID, BractID, FruitID, Probability, Selfed)
+```
+
+# Parentage Assignment Data
+
+## Load Parentage Assignment Data
+
+```{r}
+data_paternity <- read.delim(paste0(here::here("Output_COLONY/Output_BestCluster.txt")), header = TRUE, sep = "", dec = ".")
+```
+
+# Halfsib Dyads 
+
+## Load Halfsib Dyads 
+
+```{r}
+data_halfsibs <- read.csv(paste0(here::here("Output_COLONY/Output_HalfSibDyad.txt")))
+```
+
+## Identify Halfsib Dyads
+
+```{r}
+data_halfsibs <- data_halfsibs %>% 
+  filter(Probability > 0.1)
+```
+
+## Complete ID Information for Halfsib Dyads
+
+```{r}
+data_halfsibs <- left_join(data_halfsibs,
+                           data_selfing %>% 
+                             select(MomID, OffspringID, BractID, FruitID, Selfed),
+                           by = c("OffspringID1" = "OffspringID"))
+
+data_halfsibs <- left_join(data_halfsibs,
+                           data_selfing %>% 
+                             select(MomID, OffspringID, BractID, FruitID, Selfed),
+                           by = c("OffspringID2" = "OffspringID"))
+```
+
+## Rename Columns for Halfsib Dyads
+
+```{r}
+data_halfsibs <- data_halfsibs %>% 
+  rename(OffspringID1 = OffspringID1,
+         OffspringID2 = OffspringID2,
+         Probability = Probability,
+         MomID1 = MomID.x,
+         BractID1 = BractID.x,
+         FruitID1 = FruitID.x,
+         SelfedID1 = Selfed.x,
+         MomID2 = MomID.y,
+         BractID2 = BractID.y,
+         FruitID2 = FruitID.y,
+         SelfedID2 = Selfed.y)
+```
+
+## Identify Maternal Halfsib Dyads
+
+```{r}
+data_halfsibs <- data_halfsibs %>% 
+  mutate(Maternal_Halfsibs = ifelse(MomID1 == MomID2, "Yes", "No"))
+
+data_halfsibs_maternal <- data_halfsibs %>% 
+  filter(Maternal_Halfsibs == "Yes") %>% 
+  select(-Maternal_Halfsibs)
+```
+
+# Fullsib Dyads 
+
+## Load Fullsib Dyads 
+
+```{r}
+data_fullsibs <- read.csv(paste0(here::here("Output_COLONY/Output_FullSibDyad.txt")))
+```
+
+## Identify Fullsib Dyads
+
+```{r}
+data_fullsibs <- data_fullsibs %>% 
+  filter(Probability >= 0.9)
+```
+
+## Complete ID Information for Fullsib Dyads
+
+```{r}
+data_fullsibs <- left_join(data_fullsibs,
+                           data_selfing %>% 
+                             select(MomID, OffspringID, BractID, FruitID, Selfed),
+                           by = c("OffspringID1" = "OffspringID"))
+
+data_fullsibs <- left_join(data_fullsibs,
+                           data_selfing %>% 
+                             select(MomID, OffspringID, BractID, FruitID, Selfed),
+                           by = c("OffspringID2" = "OffspringID"))
+```
+
+## Rename Columns for Fullsib Dyads
+
+```{r}
+data_fullsibs <- data_fullsibs %>% 
+  rename(OffspringID1 = OffspringID1,
+         OffspringID2 = OffspringID2,
+         Probability = Probability,
+         MomID1 = MomID.x,
+         BractID1 = BractID.x,
+         FruitID1 = FruitID.x,
+         SelfedID1 = Selfed.x,
+         MomID2 = MomID.y,
+         BractID2 = BractID.y,
+         FruitID2 = FruitID.y,
+         SelfedID2 = Selfed.y)
+```
+
+# Maternal Sibships
+
+## Combine Maternal Halfsib Dyads with Fullsib Dyads
+
+```{r}
+data_maternal_sibships <- rbind(data.frame(data_halfsibs_maternal, Type = "Maternal_Halfsibs"),
+                                data.frame(data_fullsibs, Type = "Fullsibs"))
+
+data_maternal_sibships <- data_maternal_sibships %>% 
+  select(-Probability)
+```
+
+## Add Patch Information
+
+```{r}
+data_maternal_sibships <- data_maternal_sibships %>% 
+  mutate(PatchID1 = substr(OffspringID1, 1, 2))
+
+data_maternal_sibships <- data_maternal_sibships %>% 
+  mutate(PatchID2 = substr(OffspringID1, 1, 2))
+```
+
+## Add Parentage Assignment Data
+
+```{r}
+data_maternal_sibships <- left_join(data_maternal_sibships,
+                                    data_paternity %>% 
+                                       select(OffspringID, FatherID),
+                                    by = c("OffspringID1" = "OffspringID"))
+
+data_maternal_sibships <- left_join(data_maternal_sibships,
+                                    data_paternity %>% 
+                                       select(OffspringID, FatherID),
+                                    by = c("OffspringID2" = "OffspringID"))
+```
+
+## Rename Columns
+
+```{r}
+data_maternal_sibships <- data_maternal_sibships %>% 
+  rename(DadID1 = FatherID.x,
+         DadID2 = FatherID.y)
+```
+
+## Removed Selfed Seeds
+
+```{r}
+data_maternal_sibships_outcrossed <- data_maternal_sibships %>% 
+  filter(SelfedID1 == "No",
+         SelfedID2 == "No")
+```
+
+## Arrange Column Order
+
+```{r}
+data_maternal_sibships <- data_maternal_sibships %>% 
+  select(OffspringID1, OffspringID2, PatchID1, PatchID2, MomID1, MomID2, BractID1, BractID2, FruitID1, FruitID2, SelfedID1, SelfedID2, DadID1, DadID2, Type)
+
+data_maternal_sibships_outcrossed <- data_maternal_sibships_outcrossed %>% 
+  select(OffspringID1, OffspringID2, PatchID1, PatchID2, MomID1, MomID2, BractID1, BractID2, FruitID1, FruitID2, SelfedID1, SelfedID2, DadID1, DadID2, Type)
+```
+
+# Paternal Halfsib Dyads
+
+## Load Paternal Halfsib Dyads Data
+
+```{r}
+data_halfsibs_paternal <- read.csv(paste0(here::here("Output_COLONY/Output_Seed_Pairs_Among_Moms.txt")))
+```
+
+## Include Patch Information
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  mutate(PatchID1 = substr(OffspringID1, 1, 2))
+
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  mutate(PatchID2 = substr(OffspringID2, 1, 2))
+```
+
+## Restrict Seed Pairs to Within Sampling Location
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  filter(PatchID1 == PatchID2)
+```
+
+## Add Selfing Information
+
+```{r}
+data_halfsibs_paternal <- left_join(data_halfsibs_paternal,
+                                    data_selfing %>% 
+                                      select(MomID, OffspringID, BractID, FruitID, Selfed),
+                                    by = c("OffspringID1" = "OffspringID"))
+
+data_halfsibs_paternal <- left_join(data_halfsibs_paternal,
+                                    data_selfing %>% 
+                                      select(MomID, OffspringID, BractID, FruitID, Selfed),
+                                    by = c("OffspringID2" = "OffspringID"))
+```
+
+## Add Parentage Assignment Data
+
+```{r}
+data_halfsibs_paternal <- left_join(data_halfsibs_paternal,
+                                    data_paternity %>% 
+                                      select(OffspringID, FatherID),
+                                    by = c("OffspringID1" = "OffspringID"))
+
+data_halfsibs_paternal <- left_join(data_halfsibs_paternal,
+                                    data_paternity %>% 
+                                      select(OffspringID, FatherID),
+                                    by = c("OffspringID2" = "OffspringID"))
+```
+
+## Rename Columns
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  rename(OffspringID1 = OffspringID1,
+         OffspringID2 = OffspringID2,
+         PatchID1 = PatchID1,
+         PatchID2 = PatchID2,
+         MomID1 = MomID.x,
+         BractID1 = BractID.x,
+         FruitID1 = FruitID.x,
+         SelfedID1 = Selfed.x,
+         MomID2 = MomID.y,
+         BractID2 = BractID.y,
+         FruitID2 = FruitID.y,
+         SelfedID2 = Selfed.y,
+         DadID1 = FatherID.x,
+         DadID2 = FatherID.y)
+```
+
+## Remove Seeds with Known Father from the Same Sampling Location (Near-Neighbor Mating)
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  filter(str_detect(DadID1, "#"))
+
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  filter(str_detect(DadID2, "#"))
+```
+
+## Remove Selfed Seeds
+
+```{r}
+data_halfsibs_paternal_outcrossed <- data_halfsibs_paternal %>% 
+  filter(SelfedID1 == "No",
+         SelfedID2 == "No")
+```
+
+## Add Sibship Type
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  mutate(Type = ifelse(DadID1 == DadID2, "Paternal_Halfsibs", "Nonsibs"))
+
+data_halfsibs_paternal_outcrossed <- data_halfsibs_paternal_outcrossed %>% 
+  mutate(Type = ifelse(DadID1 == DadID2, "Paternal_Halfsibs", "Nonsibs"))
+```
+
+## Arrange Column Order
+
+```{r}
+data_halfsibs_paternal <- data_halfsibs_paternal %>% 
+  select(OffspringID1, OffspringID2, PatchID1, PatchID2, MomID1, MomID2, BractID1, BractID2, FruitID1, FruitID2, SelfedID1, SelfedID2, DadID1, DadID2, Type)
+
+data_halfsibs_paternal_outcrossed <- data_halfsibs_paternal_outcrossed %>% 
+  select(OffspringID1, OffspringID2, PatchID1, PatchID2, MomID1, MomID2, BractID1, BractID2, FruitID1, FruitID2, SelfedID1, SelfedID2, DadID1, DadID2, Type)
+```
+
+# Assemble Sibship Data
+
+```{r}
+data_dyads <- rbind(data_maternal_sibships, data_halfsibs_paternal)
+
+data_dyads_outcrossed <- rbind(data_maternal_sibships_outcrossed, data_halfsibs_paternal_outcrossed)
+```
+
+# Load FPR and FNR Error Rates
+
+```{r}
+error_rates <- readRDS(paste0(here::here("Output_COLONY/FPR_FNR_Error_Rates.rds")))
+```
+
+# Function to Correct Plant Mating System Parameters for FPR and FNR Error Rates
+
+```{r}
+corrected_mating_estimates <- function(T, N, SE_Initial, SP, SE_Correct)
+{
+  P <- T / N
+  
+  Estimate <- (P - (1 - SP)) / (SE_Correct + SP - 1)
+  SE_Corrected <- as.numeric(SE_Initial / (SE_Correct + SP - 1))
+  
+  data.frame(Observed_Estimate = P,
+             SE_Initial = SE_Initial,
+             Corrected_Estimate = Estimate,
+             SE_Corrected = SE_Corrected,
+             Observed = T,
+             Inferred = Estimate * N)
+}
+```
+
+# Estimate Mean Correlated Paternity at Different Hierarchical Levels
+
+```{r}
+corr_pat <- function(df)
+{
+  corr_pat_within_moms <- 
+    nrow(df %>% filter(Type == "Fullsibs")) /
+    nrow(df %>% filter(Type %in% c("Fullsibs", "Maternal_Halfsibs")))
+  
+  corr_pat_within_fruits <-
+    nrow(df %>% filter(FruitID1 == FruitID2, Type == "Fullsibs")) /
+    nrow(df %>% filter(FruitID1 == FruitID2, Type %in% c("Fullsibs", "Maternal_Halfsibs")))
+  
+  corr_pat_among_fruits <-
+    nrow(df %>% filter(FruitID1 != FruitID2, Type == "Fullsibs")) /
+    nrow(df %>% filter(FruitID1 != FruitID2, Type %in% c("Fullsibs", "Maternal_Halfsibs")))
+  
+  corr_pat_among_fruits_same_bract <-
+    nrow(df %>% filter(FruitID1 != FruitID2, BractID1 == BractID2, Type == "Fullsibs")) /
+    nrow(df %>% filter(FruitID1 != FruitID2, BractID1 == BractID2, Type %in% c("Fullsibs", "Maternal_Halfsibs")))
+  
+  corr_pat_among_moms <- 
+    nrow(df %>% filter(Type == "Paternal_Halfsibs")) /
+    nrow(df %>% filter(Type %in% c("Paternal_Halfsibs", "Nonsibs")))
+  
+  return(c(corr_pat_within_moms, corr_pat_within_fruits, corr_pat_among_fruits, corr_pat_among_fruits_same_bract, corr_pat_among_moms))
+}
+```
+
+```{r}
+boot_corr_pat <- function(dataframe, indices)
+{
+  d <- dataframe[indices,]
+  return(as.numeric(corr_pat(d)))
+}
+```
+
+```{r}
+corr_pat <- boot(data_dyads,
+                 boot_corr_pat,
+                 R = 1000)
+```
+
+```{r}
+corr_pat_outcrossed <- boot(data_dyads_outcrossed,
+                            boot_corr_pat,
+                            R = 1000)
+```
+
+## Estimate Mean Correlated Paternity Within Maternal Plants: Correct for FPR and FNR Error Rates
+
+```{r}
+cor_pat_within_moms_corrected <- function(df)
+{
+  cor_pat_within_moms <- corrected_mating_estimates(T = nrow(df %>% 
+                                                               filter(Type == "Fullsibs")),
+                                             N = nrow(df %>% 
+                                                        filter(Type %in% c("Fullsibs", "Maternal_Halfsibs"))),
+                                             SE_Initial = 0.0054697125,
+                                             SP = 1 - error_rates$Full_Sibs_FPR,
+                                             SE_Correct = 1 - error_rates$Full_Sibs_FNR)
+  
+  return((cor_pat_within_moms))
+}
+
+cor_pat_within_moms <- cor_pat_within_moms_corrected(data_dyads_outcrossed)
+```
+
+## Estimate Mean Correlated Paternity Within Fruits: Correct for FPR and FNR Error Rates
+
+```{r}
+cor_pat_within_fruits_corrected <- function(df)
+{
+  cor_pat_within_fruits <- corrected_mating_estimates(T = nrow(df %>% 
+                                                                           filter(FruitID1 == FruitID2, Type == "Fullsibs")),
+                                             N = nrow(df %>% 
+                                                        filter(FruitID1 == FruitID2, Type %in% c("Fullsibs", "Maternal_Halfsibs"))),
+                                             SE_Initial = 0.0190657382,
+                                             SP = 1 - error_rates$Full_Sibs_FPR,
+                                             SE_Correct = 1 - error_rates$Full_Sibs_FNR)
+  
+  return((cor_pat_within_fruits))
+}
+
+cor_pat_within_fruits <- cor_pat_within_fruits_corrected(data_dyads_outcrossed)
+```
+
+## Estimate Mean Correlated Paternity Among Fruits Same Bract: Correct for FPR and FNR Error Rates
+
+```{r}
+cor_pat_among_fruits_corrected <- function(df)
+{
+  cor_pat_among_fruits <- corrected_mating_estimates(T = nrow(df %>% 
+                                                                filter(FruitID1 != FruitID2,
+                                                                       BractID1 == BractID2,
+                                                                       Type == "Fullsibs")),
+                                             N = nrow(df %>% 
+                                                        filter(FruitID1 != FruitID2,
+                                                               BractID1 == BractID2,
+                                                               Type %in% c("Fullsibs", "Maternal_Halfsibs"))),
+                                             SE_Initial = 0.0071995857,
+                                             SP = 1 - error_rates$Full_Sibs_FPR,
+                                             SE_Correct = 1 - error_rates$Full_Sibs_FNR)
+  
+  return((cor_pat_among_fruits))
+}
+
+cor_pat_among_fruits <- cor_pat_among_fruits_corrected(data_dyads_outcrossed)
+```
+
+## Estimate Mean Correlated Paternity Among Maternal Plant Same Sampling Location: Correct for FPR and FNR Error Rates
+
+```{r}
+cor_pat_among_moms_corrected <- function(df)
+{
+  cor_pat_among_moms <- corrected_mating_estimates(T = nrow(df %>%
+                                                              filter(Type == "Paternal_Halfsibs")),
+                                             N = nrow(df %>% 
+                                                        filter(Type %in% c("Paternal_Halfsibs", "Nonsibs"))),
+                                             SE_Initial = 0.0007672469,
+                                             SP = 1 - error_rates$Paternal_Half_Sibs_FPR,
+                                             SE_Correct = 1 - error_rates$Paternal_Half_Sibs_FNR)
+  
+  return((cor_pat_among_moms))
+}
+
+cor_pat_among_moms <- cor_pat_among_moms_corrected(data_dyads_outcrossed)
+```
+
+# Assemble Estimates of Correlated Paternity
+
+```{r}
+correlated_paternity_estimates <- data.frame(Level = c("Wihtin_Moms",
+                                                       "Within_Fruits",
+                                                       "Among_Fruits",
+                                                       "Among_Moms"),
+                                             Observed = c(cor_pat_within_moms$Observed,
+                                                          cor_pat_within_fruits$Observed,
+                                                          cor_pat_among_fruits$Observed,
+                                                          cor_pat_among_moms$Observed),
+                                             Observed_Estimate = c(cor_pat_within_moms$Observed_Estimate,
+                                                                   cor_pat_within_fruits$Observed_Estimate,
+                                                                   cor_pat_among_fruits$Observed_Estimate,
+                                                                   cor_pat_among_moms$Observed_Estimate),
+                                             Observed_SE = c(cor_pat_within_moms$SE_Initial,
+                                                             cor_pat_within_fruits$SE_Initial,
+                                                             cor_pat_among_fruits$SE_Initial,
+                                                             cor_pat_among_moms$SE_Initial),
+                                             Corrected_Estimate = c(cor_pat_within_moms$Corrected_Estimate,
+                                                                    cor_pat_within_fruits$Corrected_Estimate,
+                                                                    cor_pat_among_fruits$Corrected_Estimate,
+                                                                    cor_pat_among_moms$Corrected_Estimate),
+                                             Corected_SE = c(cor_pat_within_moms$SE_Corrected,
+                                                             cor_pat_within_fruits$SE_Corrected,
+                                                             cor_pat_among_fruits$SE_Corrected,
+                                                             cor_pat_among_moms$SE_Corrected))
+
+correlated_paternity_estimates
+```
