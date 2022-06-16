@@ -1,0 +1,264 @@
+---
+title: "Estimation of Plant Mating System Parameters: Type of Mating Events"
+author: Felipe Torres-Vanegas
+date: May 9, 2022
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+# Selfing Data
+
+## Load Selfing Data
+
+```{r}
+data_selfing <- read.csv(paste0(here::here("Output_COLONY/Output_Selfer.txt")))
+```
+
+## Identify Selfed Seeds
+
+```{r}
+data_selfing <- data_selfing %>% 
+  mutate(Selfed = ifelse(Probability >= 0.90, "Yes", "No"))
+```
+
+## Remove Seed with Ambiguous Parentage Assignment
+
+```{r}
+data_selfing <- data_selfing %>% 
+  filter(OffspringID != "29E_B5_F4_10_2016")
+```
+
+# Parent Pair Data
+
+## Load Parent Pair Data
+
+```{r}
+data_parent_pair <- read.csv(paste0(here::here("Output_COLONY/Output_ParentPair.txt")))
+```
+
+## Select Seeds with Probability >= 0.90
+
+```{r}
+data_parent_pair <- data_parent_pair %>% 
+  filter(Probability >= 0.90)
+```
+
+## Add Forest Patch ID
+
+```{r}
+data_parent_pair <- data_parent_pair %>% 
+  mutate(DadPatch = substr(InferredDad, 1, 2))
+
+data_parent_pair <- data_parent_pair %>% 
+  mutate(MumPatch = substr(InferredMum, 1, 2))
+```
+
+## Select Outcrossed Seeds
+
+```{r}
+data_parent_pair <- left_join(data_parent_pair,
+                              data_selfing %>% 
+                                dplyr::select(OffspringID, Selfed),
+                              by = c("OffspringID" = "OffspringID"))
+
+data_parent_pair_outcrossed <- data_parent_pair %>% 
+  filter(Selfed == "No")
+```
+
+# Identify Near-Neighbor Mating Events
+
+```{r}
+near_mating <- data_parent_pair %>% 
+  filter(DadPatch == MumPatch) %>% 
+  filter(as.character(InferredDad) != as.character(InferredMum))
+```
+
+# Load FPR and FNR Error Rates
+
+```{r}
+error_rates <- readRDS(paste0(here::here("Output_COLONY/FPR_FNR_Error_Rates.rds")))
+```
+
+# Function to Correct Plant Mating System Parameters for FPR and FNR Error Rates
+
+```{r}
+corrected_mating_estimates <- function(T, N, SE_Initial, SP, SE_Correct)
+{
+  P <- T / N
+  
+  Estimate <- (P - (1 - SP)) / (SE_Correct + SP - 1)
+  SE_Corrected <- as.numeric(SE_Initial / (SE_Correct + SP - 1))
+  
+  data.frame(Observed_Estimate = P,
+             SE_Initial = SE_Initial,
+             Corrected_Estimate = Estimate,
+             SE_Corrected = SE_Corrected,
+             Observed = T,
+             Inferred = Estimate * N)
+}
+```
+
+# Estimate Rate of Selfing and Outcrossing
+
+```{r}
+rate_selfing_outcrossing <- function(df)
+{
+  rate_selfing <- nrow(df %>% 
+                         filter(Selfed == "Yes")) / nrow(df)
+  
+  rate_outcrossing <- nrow(df %>% 
+                             filter(Selfed == "No")) / nrow(df)
+  
+  return(c(rate_selfing, rate_outcrossing))
+}
+```
+
+```{r}
+boot_rate_selfing_outcrossing <- function(dataframe, indices)
+{
+  d <- dataframe[indices,]
+  return(as.numeric(rate_selfing_outcrossing(d)))
+}
+```
+
+```{r}
+rate_selfing_outcrossing <- boot(data_selfing,
+                                 boot_rate_selfing_outcrossing,
+                                 R = 1000)
+```
+
+## Estimate Rate of Selfing: Correct for FPR and FNR Error Rates
+
+```{r}
+rate_selfing_corrected <- function(df)
+{
+  rate_selfing <- corrected_mating_estimates(T = nrow(df %>% 
+                                                        filter(Selfed == "Yes")),
+                                             N = nrow(df),
+                                             SE_Initial = 0.005518234,
+                                             SP = 1 - error_rates$Selfing_FPR,
+                                             SE_Correct = 1 - error_rates$Selfing_FNR)
+  
+  return((rate_selfing))
+}
+
+rate_selfing <- rate_selfing_corrected(data_selfing)
+```
+
+## Estimate Rate of Outcrossing: Correct for FPR and FNR Error Rates
+
+```{r}
+rate_outcrossing_corrected <- function(df)
+{
+  rate_outcrossing <- corrected_mating_estimates(T = nrow(df %>% 
+                                                            filter(Selfed == "No")),
+                                                 N = nrow(df),
+                                                 SE_Initial = 0.005518234,
+                                                 SP = 1 - error_rates$Selfing_FPR,
+                                                 SE_Correct = 1 - error_rates$Selfing_FNR)
+  
+  return((rate_outcrossing))
+}
+
+rate_outcrossing <- rate_outcrossing_corrected(data_selfing)
+```
+
+# Estimate Rate of Near-Neighbor and Non-Near-Neighbor Mating
+
+```{r}
+rate_near_non_near_mating <- function(df)
+{
+  rate_near <- nrow(df %>% 
+                      filter(DadPatch == MumPatch) %>% 
+                      filter(as.character(InferredDad) != as.character(InferredMum))) / nrow(df)
+  
+  rate_non_near <- nrow(df %>% 
+                          filter(DadPatch != MumPatch) %>% 
+                          filter(as.character(InferredDad) != as.character(InferredMum))) / nrow(df)
+  
+  return(c(rate_near, rate_non_near))
+}
+```
+
+```{r}
+boot_rate_near_non_near_mating <- function(dataframe, indices)
+{
+  d <- dataframe[indices,]
+  return(as.numeric(rate_near_non_near_mating(d)))
+}
+```
+
+```{r}
+rate_near_non_near_mating <- boot(data_parent_pair,
+                                  boot_rate_near_non_near_mating,
+                                  R = 1000)
+```
+
+## Estimate Rate of Near-Neighbor Mating: Correct for FPR and FNR Error Rates
+
+```{r}
+rate_near_mating_corrected <- function(df)
+{
+  rate_near <- corrected_mating_estimates(T = nrow(near_mating),
+                                          N = nrow(data_parent_pair),
+                                          SE_Initial = 0.003781389,
+                                          SP = 1 - error_rates$Near_Mating_FPR,
+                                          SE_Correct = 1 - error_rates$Near_Mating_FNR)
+  
+  return((rate_near))
+}
+
+rate_near <- rate_near_mating_corrected(data_parent_pair)
+```
+
+## Estimate Rate of Non-Near-Neighbor Mating: Correct for FPR and FNR Error Rates
+
+```{r}
+rate_non_near_mating_corrected <- function(df)
+{
+  rate_non_near <- corrected_mating_estimates(T = nrow(data_parent_pair) - nrow(near_mating) - nrow(data_selfing %>%
+                                                                                                      filter(Selfed == "Yes")),
+                                              N = nrow(data_parent_pair),
+                                              SE_Initial = 0.006741935,
+                                              SP = NA,
+                                              SE_Correct = NA)
+  
+  return((rate_non_near))
+}
+
+rate_non_near <- rate_non_near_mating_corrected(data_parent_pair)
+```
+
+# Assemble Type of Mating Events
+
+```{r}
+type_mating_events <- data.frame(Mating_Type = c("Selfing",
+                                                 "Near-Neighbour",
+                                                 "Non-Near-Neighbour",
+                                                 "Outcrossing"),
+                                 Observed = c(rate_selfing$Observed,
+                                              rate_near$Observed,
+                                              rate_non_near$Observed,
+                                              rate_outcrossing$Observed),
+                                 Observed_Estimate = c(rate_selfing$Observed_Estimate,
+                                                       rate_near$Observed_Estimate,
+                                                       rate_non_near$Observed_Estimate,
+                                                       rate_outcrossing$Observed_Estimate),
+                                 Observed_SE = c(rate_selfing$SE_Initial,
+                                                 rate_near$SE_Initial,
+                                                 rate_non_near$SE_Initial,
+                                                 rate_outcrossing$SE_Initial),
+                                 Corrected_Estimate = c(rate_selfing$Corrected_Estimate,
+                                                        rate_near$Corrected_Estimate,
+                                                        1 - rate_selfing$Corrected_Estimate - rate_near$Corrected_Estimate,
+                                                        rate_outcrossing$Corrected_Estimate),
+                                 Corected_SE = c(rate_selfing$SE_Corrected,
+                                                 rate_near$SE_Corrected,
+                                                 rate_non_near$SE_Initial,
+                                                 rate_outcrossing$SE_Corrected))
+
+type_mating_events
+```
