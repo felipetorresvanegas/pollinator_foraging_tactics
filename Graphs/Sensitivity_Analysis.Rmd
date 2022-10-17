@@ -1,0 +1,155 @@
+---
+title: "Graphs for Sensitivity Analysis"
+output: html_notebook
+---
+
+# 0. Load Packages
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(ggpubr)
+```
+
+# 1. Load Data
+
+```{r}
+data <-readRDS("FigureData.rds")
+
+# CT vs. SST
+data_ct_sst <- data$Dat
+
+# CT vs. TF
+data_ct_tf <- data$Dat.TF
+```
+
+# 2. Graphs 
+
+## 2.1. Prepare Rows and Columns
+
+```{r}
+rows <- c('6' = 'italic(~N[NBR]~"="~6*"")',
+          '20' = 'italic(~N[NBR]~"="~20*"")')
+```
+
+```{r}
+columns <- c('1' = 'italic(~p~"="~1*"")',
+             '0.5' = 'italic(~p~"="~0.5*"")',
+             '0.366' = 'italic(~p~"="~0.366*"")',
+             '0.2' = 'italic(~p~"="~0.2*"")')
+```
+
+```{r}
+data_ct_sst$p <- factor(data_ct_sst$p,
+                        levels = c('0.2', '0.366', '0.5', '1'))
+```
+
+## 2.2. CT vs. SST
+
+### 2.2.1. Number of Effective Pollen Donors
+
+```{r}
+tiff("Nep.tiff", units = "in", width = 10.5, height = 6, res = 300)
+ggplot(data_ct_sst, aes(x = p.RMV, y = Nep)) +
+  geom_line(aes(group = p.SST, color = p.SST), size = 1) +
+  geom_point(aes(color = p.SST), size = 2) +
+  geom_point(data = data_ct_sst %>% 
+               filter(p.SST == 0.131,
+                      N.NBR == 6,
+                      p.RMV == 0.056,
+                      p == 0.366),
+             shape = 17,
+             size = 3,
+             color = "red") +
+  facet_grid(N.NBR ~ p,
+             labeller = labeller(N.NBR = as_labeller(rows, label_parsed),
+                                 p = as_labeller(columns, label_parsed))) +
+  theme_bw(base_size = 15) +
+  scale_y_continuous(trans = 'log', breaks = c(1, 10, 100, 1000)) +
+  scale_x_continuous(breaks = c(0, 0.2, 0.5, 1)) +
+  ylab(expression(paste("Number of Effective Pollen Donors (",italic(~N[ep]),")"))) +
+  xlab(expression(paste(italic(~P[RMV])))) +
+  scale_color_manual(values = c("#56B4E9", "#009E73", "#000000", "#E69F00"),
+                     name = expression(paste(italic(~P[SST]))), labels = c("0", "0.133", "0.5", "1")) +
+  theme(legend.position="top",
+        panel.grid.minor = element_blank())
+```
+
+### 2.2.2. Near-Neighbour Mating
+
+```{r}
+tiff("Near_Mating.tiff", units = "in", width = 10.5, height = 6, res = 300)
+ggplot(data_ct_sst, aes(x = p.RMV, y = Local.mating)) +
+  geom_line(aes(group = p.SST, color = p.SST), size = 1) +
+  geom_point(aes(color = p.SST), size = 2) +
+  geom_point(data = data_ct_sst %>% 
+               filter(p.SST == 0.131,
+                      N.NBR == 6,
+                      p.RMV == 0.056,
+                      p == 0.366),
+             shape = 17,
+             size = 3,
+             color = "red") +
+  facet_grid(N.NBR ~ p,
+             labeller = labeller(N.NBR = as_labeller(rows, label_parsed),
+                                 p = as_labeller(columns, label_parsed))) +
+  theme_bw(base_size = 15) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1)) +
+  scale_x_continuous(breaks = c(0, 0.2, 0.5, 1)) +
+  ylab("Rate of Near-Neighbour Mating") +
+  xlab(expression(paste(italic(~P[RMV])))) +
+  scale_color_manual(values = c("#56B4E9", "#009E73", "#000000", "#E69F00"),
+                     name = expression(paste(italic(~P[SST]))), labels = c("0", "0.133", "0.5", "1")) +
+  theme(legend.position="top",
+        panel.grid.minor = element_blank())
+```
+
+## 2.3. CT vs. TF
+
+### 2.3.1. Number of Effective Pollen Donors
+
+```{r}
+tf_nep <-
+ggplot(data_ct_tf, aes(x = p, y = Nep)) +
+  geom_line(aes(group = p.TF, color = p.TF), size = 1) +
+  geom_point(aes(group = p.TF, color = p.TF), size = 2) +
+  facet_grid(rows = vars(N.NBR),
+             labeller = labeller(N.NBR = as_labeller(rows, label_parsed))) +
+  theme_bw(base_size = 15) +
+  scale_y_continuous(trans = 'log', breaks = c(1, 10, 100, 1000), limits=c(1,1000)) +
+  scale_x_continuous(breaks = c(0.2, 0.366, 0.5, 1)) +
+  ylab(expression(paste("Number of Effective Pollen Donors (",italic(~N[ep]),")"))) +
+  xlab(expression(paste(italic(~p)))) +
+  scale_color_manual(values = c("#56B4E9", "#009E73", "#000000", "#E69F00"),
+                     name = expression(paste(italic(~P[TF]))), labels = c("0", "0.25", "0.5", "1")) +
+  theme(legend.position="top",
+        panel.grid.minor = element_blank())
+```
+
+### 2.3.2. Near-Neighbour Mating
+
+```{r}
+tf_nnm <-
+ggplot(data_ct_tf, aes(x = p, y = Local.mating)) +
+  geom_line(aes(group = p.TF, color = p.TF), size = 1) +
+  geom_point(aes(group = p.TF, color = p.TF), size = 2) +
+  facet_grid(rows = vars(N.NBR),
+             labeller = labeller(N.NBR = as_labeller(rows, label_parsed))) +
+  theme_bw(base_size = 15) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1), limits=c(0,1)) +
+  scale_x_continuous(breaks = c(0.2, 0.366, 0.5, 1)) +
+  ylab("Rate of Near-Neighbour Mating") +
+  xlab(expression(paste(italic(~p)))) +
+  scale_color_manual(values = c("#56B4E9", "#009E73", "#000000", "#E69F00"),
+                     name = expression(paste(italic(~P[TF]))), labels = c("0", "0.25", "0.5", "1")) +
+  theme(legend.position="top",
+        panel.grid.minor = element_blank())
+```
+
+### 2.2.3. CT vs. TF
+
+```{r}
+tiff("tf_nep_nnm.tiff", units = "in", width = 10.5, height = 6, res = 300)
+ggarrange(tf_nep, tf_nnm, labels = c("a", "b"), ncol = 2, nrow = 1, common.legend = TRUE)
+```
