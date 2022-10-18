@@ -1,0 +1,7 @@
+# Simulation_Modeling
+
+This folder contains the R code files necessary to perform the simulation modeling approach that was implemented in the manuscript.
+
+1. Simulation_Modeling_Pollen_Loads.Rmd: A broad range of values for each parameter of pollinator foraging to simulate the pollen load received by individual flowers of different near-neighbour plants over the course of a flowering season. Pattern-oriented simulation modeling to infer the particular foraging tactic adopted by the pollinators of H. tortuosa. Sensitivity analysis that included a full-factorial design based on a broad range of values for each parameter of pollinator foraging.
+
+2. Simulation_Modeling_Mating_Scenarios.Rmd: Create different mating scenarios to quantify false positive (FPR) and false negative (FNR) error rates, which were specific to our parentage and sibship inference analysis. The mating scenarios simulated self-pollination, near-neighbour mating, and pollen immigration. We simulated the multilocus genotype of offspring resulting from each scenario by randomly selecting one allele per parent plant, which corresponded to genotyped H. tortuosa individuals. Putative parent-offspring pairs were validated against known true parents (for each simulated offspring genotype, the correct maternal and paternal parent was known) to quantify FPR and FNR.
